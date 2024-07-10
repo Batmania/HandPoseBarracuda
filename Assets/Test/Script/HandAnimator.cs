@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using Klak.TestTools;
 using MediaPipe.HandPose;
+using System.Collections.Generic;
 
 public sealed class HandAnimator : MonoBehaviour
 {
@@ -36,6 +37,9 @@ public sealed class HandAnimator : MonoBehaviour
         (0, 17), (2, 5), (5, 9), (9, 13), (13, 17)  // Palm
     };
 
+    static readonly int[] FingertipIndices = { 4, 8, 12, 16, 20 };
+    static readonly int[] LowerFingerIndices = { 3, 7, 11, 15, 19 };
+
     Matrix4x4 CalculateJointXform(Vector3 pos)
       => Matrix4x4.TRS(pos, Quaternion.identity, Vector3.one * 0.07f);
 
@@ -69,11 +73,25 @@ public sealed class HandAnimator : MonoBehaviour
 
         var layer = gameObject.layer;
 
+        // List to store joint coordinates
+        List<Vector3> jointCoordinates = new List<Vector3>();
+
+        // List to store fingertip coordinates
+        List<Vector3> fingertipCoordinates = new List<Vector3>();
+
         // Joint balls
         for (var i = 0; i < HandPipeline.KeyPointCount; i++)
         {
-            var xform = CalculateJointXform(_pipeline.GetKeyPoint(i));
+            var position = _pipeline.GetKeyPoint(i);
+            jointCoordinates.Add(position);
+            var xform = CalculateJointXform(position);
             Graphics.DrawMesh(_jointMesh, xform, _jointMaterial, layer);
+
+            // Check if the joint is a fingertip
+            if (System.Array.IndexOf(FingertipIndices, i) >= 0)
+            {
+                fingertipCoordinates.Add(position);
+            }
         }
 
         // Bones
@@ -87,6 +105,60 @@ public sealed class HandAnimator : MonoBehaviour
 
         // UI update
         _monitorUI.texture = _source.Texture;
+
+        // Output joint coordinates
+        OutputJointCoordinates(jointCoordinates);
+
+        // Output fingertip coordinates
+        OutputFingertipCoordinates(fingertipCoordinates);
+
+        // Check if the hand is in a fist gesture
+        if (IsFistGesture(jointCoordinates))
+        {
+            Debug.Log("Fist gesture detected!");
+        }
+    }
+
+    void OutputJointCoordinates(List<Vector3> jointCoordinates)
+    {
+        // Example: Log the coordinates to the console
+        for (int i = 0; i < jointCoordinates.Count; i++)
+        {
+            Debug.Log($"Joint {i}: {jointCoordinates[i]}");
+        }
+
+        // Optionally, you can store the coordinates in a file or use them elsewhere
+    }
+
+    void OutputFingertipCoordinates(List<Vector3> fingertipCoordinates)
+    {
+        // Example: Log the coordinates to the console
+        for (int i = 0; i < fingertipCoordinates.Count; i++)
+        {
+            Debug.Log($"Fingertip {i}: {fingertipCoordinates[i]}");
+        }
+
+        // Optionally, you can store the coordinates in a file or use them elsewhere
+    }
+
+    bool IsFistGesture(List<Vector3> jointCoordinates)
+    {
+        // Check distances between fingertip joints and their corresponding lower joints
+        for (int i = 0; i < FingertipIndices.Length; i++)
+        {
+            var fingertip = jointCoordinates[FingertipIndices[i]];
+            var lowerFinger = jointCoordinates[LowerFingerIndices[i]];
+
+            // Adjust the distance threshold as needed
+            float distanceThreshold = 0.05f;
+
+            if (Vector3.Distance(fingertip, lowerFinger) > distanceThreshold)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     #endregion
